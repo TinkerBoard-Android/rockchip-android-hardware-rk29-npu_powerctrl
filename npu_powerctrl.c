@@ -9,7 +9,6 @@
 #include <unistd.h>
 
 #define LOG_TAG "NPU_POWER"
-#define DEBUG_EN 0
 #include <utils/Log.h>
 #include <cutils/properties.h>
 
@@ -92,22 +91,16 @@ static int clk_enable(int enable) {
 }
 
 static void request_gpio(char *gpio_num) {
-	if (DEBUG_EN)
-		ALOGD("request gpio: %s\n", gpio_num);
 	sysfs_write(GPIO_EXPORT_PATH, gpio_num);
 }
 
 static void free_gpio(char *gpio_num) {
-	if (DEBUG_EN)
-		ALOGD("request gpio: %s\n", gpio_num);
 	sysfs_write(GPIO_UNEXPORT_PATH, gpio_num);
 }
 
 static void set_gpio_dir(char *gpio_num, char *dir) {
 	char gpio_dir_name[FNAME_SIZE];
 
-	if (DEBUG_EN)
-		ALOGD("set gpio output: %s\n", gpio_num);
 	snprintf(gpio_dir_name, sizeof(gpio_dir_name), "%s/gpio%s/direction",
 			GPIO_BASE_PATH, gpio_num);
 	sysfs_write(gpio_dir_name, dir);
@@ -141,8 +134,7 @@ void npu_power_gpio_init(void) {
 	int index = 0;
 
 	while (index != GPIO_CNT) {
-		if (DEBUG_EN)
-			ALOGD("init gpio: %s\n", gpio_list[index]);
+		ALOGD("init gpio: %s\n", gpio_list[index]);
 		request_gpio(gpio_list[index]);
 		set_gpio_dir(gpio_list[index], "out");
 		index ++;
@@ -154,17 +146,13 @@ void npu_power_gpio_exit(void) {
 	int index = 0;
 
 	while (index != GPIO_CNT) {
-		if (DEBUG_EN)
-			ALOGD("init gpio: %s\n", gpio_list[index]);
+		ALOGD("init gpio: %s\n", gpio_list[index]);
 		free_gpio(gpio_list[index]);
 		index ++;
 	}
 }
 
 void npu_reset(void) {
-	set_gpio(CPU_RESET_NPU_GPIO, "0");
-	usleep(15000);
-
 	/*power en*/
 	set_gpio(NPU_VDD_0V8_GPIO, "1");
 	usleep(2000);
@@ -172,6 +160,7 @@ void npu_reset(void) {
 	usleep(2000);
 	set_gpio(NPU_VCC_1V8_GPIO, "1");
 	usleep(2000);
+	clk_enable(1);
 	set_gpio(NPU_VDD_CPU_GPIO, "1");
 	usleep(2000);
 	set_gpio(NPU_VCCIO_3V3_GPIO, "1");
@@ -179,9 +168,9 @@ void npu_reset(void) {
 	set_gpio(NPU_VDD_GPIO, "1");
 	usleep(2000);
 
-	clk_enable(1);
-
-	usleep(20000);
+	usleep(25000);
+	set_gpio(CPU_RESET_NPU_GPIO, "0");
+	usleep(2000);
 	set_gpio(CPU_RESET_NPU_GPIO, "1");
 }
 
