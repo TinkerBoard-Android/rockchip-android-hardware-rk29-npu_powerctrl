@@ -33,11 +33,11 @@
 
 #define NPU_TEST_GPIO "96"
 
-#define GPIO_CNT 9
-static char gpio_list[GPIO_CNT][4] = {NPU_VDD_0V8_GPIO, NPU_VDD_LOG_GPIO, NPU_VCC_1V8_GPIO, \
-       	NPU_VDD_CPU_GPIO, NPU_VCCIO_3V3_GPIO, NPU_VDD_GPIO, CPU_RESET_NPU_GPIO, NPU_INT_CPU_GPIO, CPU_INT_NPU_GPIO};
+static char gpio_list[][4] = {NPU_VDD_0V8_GPIO, NPU_VDD_LOG_GPIO, NPU_VCC_1V8_GPIO, \
+	NPU_VDD_CPU_GPIO, NPU_VCCIO_3V3_GPIO, NPU_VDD_GPIO, CPU_RESET_NPU_GPIO, \
+	NPU_INT_CPU_GPIO, CPU_INT_NPU_GPIO};
 
-static void sysfs_write(char *path, char *val) {
+static int sysfs_write(char *path, char *val) {
 	char buf[80];
 	int len;
 	int fd = open(path, O_WRONLY);
@@ -45,16 +45,18 @@ static void sysfs_write(char *path, char *val) {
 	if (fd < 0) {
 		strerror_r(errno, buf, sizeof(buf));
 		ALOGE("Error opening %s value=%s:%s\n", path, val, buf);
-		return;
+		return -1;
 	}
 
 	len = write(fd, val, sizeof(val));
 	if (len < 0) {
 		strerror_r(errno, buf, sizeof(buf));
 		ALOGE("Error writing to %s value=%s: %s\n", path, val, buf);
+		return -1;
 	}
 
 	close(fd);
+	return 0;
 }
 
 static void sysfs_read(char *path, char *val)
@@ -90,8 +92,10 @@ static int clk_enable(int enable) {
 	return 0;
 }
 
-static void request_gpio(char *gpio_num) {
-	sysfs_write(GPIO_EXPORT_PATH, gpio_num);
+static int request_gpio(char *gpio_num) {
+	int ret;
+	ret = sysfs_write(GPIO_EXPORT_PATH, gpio_num);
+	return ret;
 }
 
 static void free_gpio(char *gpio_num) {
@@ -131,21 +135,27 @@ static int set_gpio(char *gpio_number, char *val) {
 }
 
 void npu_power_gpio_init(void) {
-	int index = 0;
+	int ret, index = 0, gpio_cnt = sizeof(gpio_list)/sizeof(int);
 
-	while (index != GPIO_CNT) {
+	while (index != gpio_cnt) {
 		ALOGD("init gpio: %s\n", gpio_list[index]);
-		request_gpio(gpio_list[index]);
+		ret = request_gpio(gpio_list[index]);
+		if (ret) {
+			ALOGD("init gpio: %s failed!!!\n", gpio_list[index]);
+			printf("init gpio: %s failed!!!\n", gpio_list[index]);
+			return;
+		}
 		set_gpio_dir(gpio_list[index], "out");
 		index ++;
 	}
+	set_gpio(CPU_INT_NPU_GPIO, "1");
 	set_gpio_dir(NPU_INT_CPU_GPIO, "in");
 }
 
 void npu_power_gpio_exit(void) {
-	int index = 0;
+	int index = 0, gpio_cnt = sizeof(gpio_list)/sizeof(int);
 
-	while (index != GPIO_CNT) {
+	while (index != gpio_cnt) {
 		ALOGD("init gpio: %s\n", gpio_list[index]);
 		free_gpio(gpio_list[index]);
 		index ++;
@@ -153,6 +163,20 @@ void npu_power_gpio_exit(void) {
 }
 
 void npu_reset(void) {
+	sysfs_write("/sys/power/wake_lock", "npu_lock");
+	/*power off*/
+	set_gpio(NPU_VDD_LOG_GPIO, "0");
+	/* wait for usb disconnect */
+	usleep(2000);
+	set_gpio(NPU_VDD_GPIO, "0");
+	set_gpio(NPU_VCCIO_3V3_GPIO, "0");
+	set_gpio(NPU_VDD_CPU_GPIO, "0");
+	set_gpio(NPU_VCC_1V8_GPIO, "0");
+	set_gpio(NPU_VDD_0V8_GPIO, "0");
+	set_gpio(CPU_INT_NPU_GPIO, "0");
+	set_gpio(CPU_RESET_NPU_GPIO, "0");
+	usleep(2000);
+
 	/*power en*/
 	set_gpio(NPU_VDD_0V8_GPIO, "1");
 	usleep(2000);
@@ -169,9 +193,22 @@ void npu_reset(void) {
 	usleep(2000);
 
 	usleep(25000);
-	set_gpio(CPU_RESET_NPU_GPIO, "0");
-	usleep(2000);
 	set_gpio(CPU_RESET_NPU_GPIO, "1");
+}
+
+void npu_poweroff(void) {
+	/*power off*/
+	set_gpio(NPU_VDD_LOG_GPIO, "0");
+	/* wait for usb disconnect */
+	usleep(2000);
+	set_gpio(NPU_VDD_GPIO, "0");
+	set_gpio(NPU_VCCIO_3V3_GPIO, "0");
+	set_gpio(NPU_VDD_CPU_GPIO, "0");
+	set_gpio(NPU_VCC_1V8_GPIO, "0");
+	set_gpio(NPU_VDD_0V8_GPIO, "0");
+	set_gpio(CPU_INT_NPU_GPIO, "0");
+	set_gpio(CPU_RESET_NPU_GPIO, "0");
+	clk_enable(0);
 }
 
 int npu_suspend(void) {
@@ -181,21 +218,26 @@ int npu_suspend(void) {
 		return 0;
 
 	set_gpio(CPU_INT_NPU_GPIO, "0");
+	usleep(100000);
+	set_gpio(CPU_INT_NPU_GPIO, "1");
+
 	/*wait for npu enter sleep*/
 	while (retry--) {
-		if (get_gpio(NPU_INT_CPU_GPIO))
+		if (get_gpio(NPU_INT_CPU_GPIO)) {
+			set_gpio(NPU_VDD_CPU_GPIO, "0");
+			set_gpio(NPU_VDD_GPIO, "0");
+			clk_enable(0);
+
+			sysfs_write("/sys/power/wake_unlock", "npu_lock");
 			break;
+		}
 		usleep(10000);
 	}
-	set_gpio(CPU_INT_NPU_GPIO, "1");
+
 	if (!retry) {
 		ALOGE("npu suspend timeout in one second\n");
 		return -1;
 	}
-	set_gpio(NPU_VDD_CPU_GPIO, "0");
-	set_gpio(NPU_VDD_GPIO, "0");
-	clk_enable(0);
-
 	return 0;
 }
 
@@ -212,17 +254,20 @@ int npu_resume(void) {
 	usleep(10000);
 
 	set_gpio(CPU_INT_NPU_GPIO, "0");
+	usleep(100000);
+	set_gpio(CPU_INT_NPU_GPIO, "1");
 	/*wait for npu wakup*/
 	while (retry--) {
-		if (!get_gpio(NPU_INT_CPU_GPIO))
+		if (!get_gpio(NPU_INT_CPU_GPIO)) {
+			sysfs_write("/sys/power/wake_lock", "npu_lock");
 			break;
+		}
 		usleep(10000);
 	}
 	if (!retry) {
 		ALOGE("npu resume timeout in one second\n");
 		return -1;
 	}
-	set_gpio(CPU_INT_NPU_GPIO, "1");
 
 	return 0;
 }
