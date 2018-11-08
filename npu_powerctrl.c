@@ -148,7 +148,6 @@ void npu_power_gpio_init(void) {
 		set_gpio_dir(gpio_list[index], "out");
 		index ++;
 	}
-	set_gpio(CPU_INT_NPU_GPIO, "1");
 	set_gpio_dir(NPU_INT_CPU_GPIO, "in");
 }
 
@@ -191,6 +190,7 @@ void npu_reset(void) {
 	usleep(2000);
 	set_gpio(NPU_VDD_GPIO, "1");
 	usleep(2000);
+	set_gpio(CPU_INT_NPU_GPIO, "1");
 
 	usleep(25000);
 	set_gpio(CPU_RESET_NPU_GPIO, "1");
