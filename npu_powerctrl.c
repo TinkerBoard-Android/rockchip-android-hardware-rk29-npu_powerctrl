@@ -18,6 +18,7 @@
 #define GPIO_BASE_PATH "/sys/class/gpio"
 #define GPIO_EXPORT_PATH GPIO_BASE_PATH "/export"
 #define GPIO_UNEXPORT_PATH GPIO_BASE_PATH "/unexport"
+#define CLKEN_24M_PATH "/sys/kernel/debug/clk/clk_wifi_pmu/clk_enable_count"
 
 #define NPU_VDD_0V8_GPIO 	"4"  //GPIO0_PA4
 #define NPU_VDD_LOG_GPIO 	"10" //GPIO0_PB2
@@ -80,15 +81,15 @@ static void sysfs_read(char *path, char *val)
 	close(fd);
 }
 
-static int clk_enable(int enable) {
-	if (enable) {
-		//set clk
-		sysfs_write("/sys/kernel/debug/clk/clk_wifi_pmu/clk_rate", "24000000");
-		//enable clk
-		sysfs_write("/sys/kernel/debug/clk/clk_wifi_pmu/clk_enable_count", "1");
-		/*to do, gpio0_a2, set iomux to 26M clk out*/
-	} else
-		sysfs_write("/sys/kernel/debug/clk/clk_wifi_pmu/clk_enable_count", "0");
+static int clk_enable(char *enable) {
+	char val;
+
+	sysfs_read(CLKEN_24M_PATH, &val);
+	if (*enable == val)
+		return 0;
+
+	ALOGE("set clk_en  %c to %s\n", val, enable);
+	sysfs_write(CLKEN_24M_PATH, enable);
 	return 0;
 }
 
@@ -141,8 +142,6 @@ void npu_power_gpio_init(void) {
 		ALOGD("init gpio: %s\n", gpio_list[index]);
 		ret = request_gpio(gpio_list[index]);
 		if (ret) {
-			ALOGD("init gpio: %s failed!!!\n", gpio_list[index]);
-			printf("init gpio: %s failed!!!\n", gpio_list[index]);
 			return;
 		}
 		set_gpio_dir(gpio_list[index], "out");
@@ -163,6 +162,7 @@ void npu_power_gpio_exit(void) {
 
 void npu_reset(void) {
 	sysfs_write("/sys/power/wake_lock", "npu_lock");
+	clk_enable("0");
 	/*power off*/
 	set_gpio(NPU_VDD_LOG_GPIO, "0");
 	/* wait for usb disconnect */
@@ -183,7 +183,7 @@ void npu_reset(void) {
 	usleep(2000);
 	set_gpio(NPU_VCC_1V8_GPIO, "1");
 	usleep(2000);
-	clk_enable(1);
+	clk_enable("1");
 	set_gpio(NPU_VDD_CPU_GPIO, "1");
 	usleep(2000);
 	set_gpio(NPU_VCCIO_3V3_GPIO, "1");
@@ -208,7 +208,7 @@ void npu_poweroff(void) {
 	set_gpio(NPU_VDD_0V8_GPIO, "0");
 	set_gpio(CPU_INT_NPU_GPIO, "0");
 	set_gpio(CPU_RESET_NPU_GPIO, "0");
-	clk_enable(0);
+	clk_enable("0");
 }
 
 int npu_suspend(void) {
@@ -226,7 +226,7 @@ int npu_suspend(void) {
 		if (get_gpio(NPU_INT_CPU_GPIO)) {
 			set_gpio(NPU_VDD_CPU_GPIO, "0");
 			set_gpio(NPU_VDD_GPIO, "0");
-			clk_enable(0);
+			clk_enable("0");
 
 			sysfs_write("/sys/power/wake_unlock", "npu_lock");
 			break;
@@ -247,7 +247,7 @@ int npu_resume(void) {
 	if (!get_gpio(NPU_INT_CPU_GPIO))
 		return 0;
 
-	clk_enable(1);
+	clk_enable("1");
 	set_gpio(NPU_VDD_CPU_GPIO, "1");
 	set_gpio(NPU_VDD_GPIO, "1");
 
