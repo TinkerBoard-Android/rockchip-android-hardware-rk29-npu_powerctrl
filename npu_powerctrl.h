@@ -13,7 +13,6 @@ void npu_power_gpio_exit(void);
 void npu_reset(void);
 int npu_suspend(void);
 int npu_resume(void);
-int npu_power_ctrl_test(void);
 void npu_poweroff(void);
 
 #ifdef __cplusplus 

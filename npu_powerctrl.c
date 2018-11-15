@@ -29,14 +29,12 @@
 #define NPU_VDD_GPIO 		"56" //GPIO1_PD0
 
 #define CPU_RESET_NPU_GPIO 	"32" //GPIO1_PA0
-#define NPU_INT_CPU_GPIO 	"35" //GPIO1_A3
+#define NPU_PMU_SLEEP_GPIO 	"35" //GPIO1_A3
 #define CPU_INT_NPU_GPIO 	"36" //GPIO1_A4
-
-#define NPU_TEST_GPIO "96"
 
 static char gpio_list[][4] = {NPU_VDD_0V8_GPIO, NPU_VDD_LOG_GPIO, NPU_VCC_1V8_GPIO, \
 	NPU_VDD_CPU_GPIO, NPU_VCCIO_3V3_GPIO, NPU_VDD_GPIO, CPU_RESET_NPU_GPIO, \
-	NPU_INT_CPU_GPIO, CPU_INT_NPU_GPIO};
+	NPU_PMU_SLEEP_GPIO, CPU_INT_NPU_GPIO};
 
 static int sysfs_write(char *path, char *val) {
 	char buf[80];
@@ -147,7 +145,7 @@ void npu_power_gpio_init(void) {
 		set_gpio_dir(gpio_list[index], "out");
 		index ++;
 	}
-	set_gpio_dir(NPU_INT_CPU_GPIO, "in");
+	set_gpio_dir(NPU_PMU_SLEEP_GPIO, "in");
 }
 
 void npu_power_gpio_exit(void) {
@@ -189,8 +187,6 @@ void npu_reset(void) {
 	set_gpio(NPU_VCCIO_3V3_GPIO, "1");
 	usleep(2000);
 	set_gpio(NPU_VDD_GPIO, "1");
-	usleep(2000);
-	set_gpio(CPU_INT_NPU_GPIO, "1");
 
 	usleep(25000);
 	set_gpio(CPU_RESET_NPU_GPIO, "1");
@@ -209,25 +205,26 @@ void npu_poweroff(void) {
 	set_gpio(CPU_INT_NPU_GPIO, "0");
 	set_gpio(CPU_RESET_NPU_GPIO, "0");
 	clk_enable("0");
+	sysfs_write("/sys/power/wake_unlock", "npu_lock");
 }
 
 int npu_suspend(void) {
 	int retry=100;
 
-	if (get_gpio(NPU_INT_CPU_GPIO))
+	if (get_gpio(NPU_PMU_SLEEP_GPIO))
 		return 0;
 
-	set_gpio(CPU_INT_NPU_GPIO, "0");
-	usleep(100000);
 	set_gpio(CPU_INT_NPU_GPIO, "1");
+	usleep(100000);
+	set_gpio(CPU_INT_NPU_GPIO, "0");
 
 	/*wait for npu enter sleep*/
 	while (retry--) {
-		if (get_gpio(NPU_INT_CPU_GPIO)) {
+		if (get_gpio(NPU_PMU_SLEEP_GPIO)) {
+			usleep(10000);
 			set_gpio(NPU_VDD_CPU_GPIO, "0");
 			set_gpio(NPU_VDD_GPIO, "0");
 			clk_enable("0");
-
 			sysfs_write("/sys/power/wake_unlock", "npu_lock");
 			break;
 		}
@@ -244,7 +241,7 @@ int npu_suspend(void) {
 int npu_resume(void) {
 	int retry=100;
 
-	if (!get_gpio(NPU_INT_CPU_GPIO))
+	if (!get_gpio(NPU_PMU_SLEEP_GPIO))
 		return 0;
 
 	clk_enable("1");
@@ -253,12 +250,11 @@ int npu_resume(void) {
 
 	usleep(10000);
 
-	set_gpio(CPU_INT_NPU_GPIO, "0");
-	usleep(100000);
 	set_gpio(CPU_INT_NPU_GPIO, "1");
+
 	/*wait for npu wakup*/
 	while (retry--) {
-		if (!get_gpio(NPU_INT_CPU_GPIO)) {
+		if (!get_gpio(NPU_PMU_SLEEP_GPIO)) {
 			sysfs_write("/sys/power/wake_lock", "npu_lock");
 			break;
 		}
@@ -268,25 +264,9 @@ int npu_resume(void) {
 		ALOGE("npu resume timeout in one second\n");
 		return -1;
 	}
+	//waiting for userspase wakup
+	usleep(500000);
+	set_gpio(CPU_INT_NPU_GPIO, "0");
 
-	return 0;
-}
-
-int npu_power_ctrl_test(void) {
-	int val;
-
-	request_gpio(NPU_TEST_GPIO);
-	set_gpio_dir(NPU_TEST_GPIO, "out");
-	while(1) {
-		set_gpio(NPU_TEST_GPIO, "1");
-		val = get_gpio(NPU_TEST_GPIO);
-		ALOGE("set high：writing to %d\n", val);
-		usleep(1000000);
-
-		set_gpio(NPU_TEST_GPIO, "0");
-		val = get_gpio(NPU_TEST_GPIO);
-		ALOGE("set low: writing to %d\n", val);
-		usleep(1000000);
-	}
 	return 0;
 }
