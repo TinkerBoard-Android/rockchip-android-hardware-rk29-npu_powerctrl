@@ -225,6 +225,8 @@ int npu_suspend(void) {
 			set_gpio(NPU_VDD_CPU_GPIO, "0");
 			set_gpio(NPU_VDD_GPIO, "0");
 			clk_enable("0");
+			/* wait 1s for usb disconnect */
+			sleep(1);
 			sysfs_write("/sys/power/wake_unlock", "npu_lock");
 			break;
 		}
