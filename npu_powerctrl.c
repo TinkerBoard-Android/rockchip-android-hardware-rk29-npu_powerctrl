@@ -19,6 +19,7 @@
 #define GPIO_EXPORT_PATH GPIO_BASE_PATH "/export"
 #define GPIO_UNEXPORT_PATH GPIO_BASE_PATH "/unexport"
 #define CLKEN_24M_PATH "/sys/kernel/debug/clk/clk_wifi_pmu/clk_enable_count"
+#define CLKEN_32k_PATH "/sys/kernel/debug/clk/rk808-clkout2/clk_enable_count"
 
 #define NPU_VDD_0V8_GPIO 	"4"  //GPIO0_PA4
 #define NPU_VDD_LOG_GPIO 	"10" //GPIO0_PB2
@@ -160,6 +161,7 @@ void npu_power_gpio_exit(void) {
 
 void npu_reset(void) {
 	sysfs_write("/sys/power/wake_lock", "npu_lock");
+	sysfs_write(CLKEN_32k_PATH, "1");
 	clk_enable("0");
 	/*power off*/
 	set_gpio(NPU_VDD_LOG_GPIO, "0");
