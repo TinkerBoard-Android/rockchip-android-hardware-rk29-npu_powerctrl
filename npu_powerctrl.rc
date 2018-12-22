@@ -1,0 +1,11 @@
+service npu_powerctrl_suspend vendor/bin/npu_powerctrl -s
+    class core
+    oneshot
+    disabled
+    seclabel u:r:npu_powerctrl:s0
+
+service npu_powerctrl_resume vendor/bin/npu_powerctrl -r
+    class core
+    oneshot
+    disabled
+    seclabel u:r:npu_powerctrl:s0
