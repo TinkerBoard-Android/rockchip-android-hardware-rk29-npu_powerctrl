@@ -213,15 +213,17 @@ void npu_poweroff(void) {
 int npu_suspend(void) {
 	int retry=100;
 
-	if (get_gpio(NPU_PMU_SLEEP_GPIO))
+	if (get_gpio(NPU_PMU_SLEEP_GPIO)) {
+		ALOGE("It is sleeping state, noting to do!\n");
 		return 0;
+	}
 
 	set_gpio(CPU_INT_NPU_GPIO, "1");
 	usleep(100000);
 	set_gpio(CPU_INT_NPU_GPIO, "0");
 
 	/*wait for npu enter sleep*/
-	while (retry--) {
+	while (--retry) {
 		if (get_gpio(NPU_PMU_SLEEP_GPIO)) {
 			usleep(10000);
 			set_gpio(NPU_VDD_CPU_GPIO, "0");
@@ -245,8 +247,10 @@ int npu_suspend(void) {
 int npu_resume(void) {
 	int retry=100;
 
-	if (!get_gpio(NPU_PMU_SLEEP_GPIO))
+	if (!get_gpio(NPU_PMU_SLEEP_GPIO)) {
+		ALOGE("It is awakening state, noting to do!\n");
 		return 0;
+	}
 
 	clk_enable("1");
 	set_gpio(NPU_VDD_CPU_GPIO, "1");
@@ -256,8 +260,8 @@ int npu_resume(void) {
 
 	set_gpio(CPU_INT_NPU_GPIO, "1");
 
-	/*wait for npu wakup*/
-	while (retry--) {
+	/*wait for npu wakeup*/
+	while (--retry) {
 		if (!get_gpio(NPU_PMU_SLEEP_GPIO)) {
 			sysfs_write("/sys/power/wake_lock", "npu_lock");
 			break;
