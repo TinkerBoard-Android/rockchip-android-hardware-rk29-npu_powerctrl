@@ -5,6 +5,8 @@
 #include <utils/Log.h>
 #include <cutils/properties.h>
 #include <npu_powerctrl.h>
+#include <iostream>
+#include <unistd.h>
 
 static void usage(void)
 {

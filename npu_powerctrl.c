@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 // Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
 
+#include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
