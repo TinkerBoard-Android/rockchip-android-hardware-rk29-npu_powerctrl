@@ -21,6 +21,7 @@
 #define GPIO_UNEXPORT_PATH GPIO_BASE_PATH "/unexport"
 #define CLKEN_24M_PATH "/sys/kernel/debug/clk/clk_wifi_pmu/clk_enable_count"
 #define CLKEN_32k_PATH "/sys/kernel/debug/clk/rk808-clkout2/clk_enable_count"
+#define PCIE_RESET_EP "sys/devices/platform/f8000000.pcie/pcie_reset_ep"
 
 #define NPU_VDD_0V8_GPIO 	"4"  //GPIO0_PA4
 #define NPU_VDD_LOG_GPIO 	"10" //GPIO0_PB2
@@ -213,11 +214,16 @@ void npu_poweroff(void) {
 
 int npu_suspend(void) {
 	int retry=100;
+	int is_pcie;
 
 	if (get_gpio(NPU_PMU_SLEEP_GPIO)) {
 		ALOGE("It is sleeping state, noting to do!\n");
 		return 0;
 	}
+
+	is_pcie = access(PCIE_RESET_EP, R_OK);
+	if (!is_pcie)
+		sysfs_write(PCIE_RESET_EP, "2");
 
 	set_gpio(CPU_INT_NPU_GPIO, "1");
 	usleep(100000);
@@ -247,6 +253,7 @@ int npu_suspend(void) {
 
 int npu_resume(void) {
 	int retry=100;
+	int is_pcie;
 
 	if (!get_gpio(NPU_PMU_SLEEP_GPIO)) {
 		ALOGE("It is awakening state, noting to do!\n");
@@ -269,6 +276,11 @@ int npu_resume(void) {
 		}
 		usleep(10000);
 	}
+
+	is_pcie = access(PCIE_RESET_EP, R_OK);
+	if (!is_pcie)
+		sysfs_write(PCIE_RESET_EP, "1");
+
 	if (!retry) {
 		ALOGE("npu resume timeout in one second\n");
 		return -1;
