@@ -15,6 +15,7 @@
 
 #include <npu_powerctrl.h>
 
+#define VERSION "V1.1"
 #define FNAME_SIZE 50
 #define GPIO_BASE_PATH "/sys/class/gpio"
 #define GPIO_EXPORT_PATH GPIO_BASE_PATH "/export"
@@ -139,6 +140,7 @@ static int set_gpio(char *gpio_number, char *val) {
 void npu_power_gpio_init(void) {
 	int ret, index = 0, gpio_cnt = sizeof(gpio_list)/sizeof(int);
 
+	ALOGD("version: %s\n", VERSION);
 	while (index != gpio_cnt) {
 		ALOGD("init gpio: %s\n", gpio_list[index]);
 		ret = request_gpio(gpio_list[index]);
@@ -226,7 +228,7 @@ int npu_suspend(void) {
 		sysfs_write(PCIE_RESET_EP, "2");
 
 	set_gpio(CPU_INT_NPU_GPIO, "1");
-	usleep(100000);
+	usleep(20000);
 	set_gpio(CPU_INT_NPU_GPIO, "0");
 
 	/*wait for npu enter sleep*/
@@ -267,6 +269,8 @@ int npu_resume(void) {
 	usleep(10000);
 
 	set_gpio(CPU_INT_NPU_GPIO, "1");
+	usleep(20000);
+	set_gpio(CPU_INT_NPU_GPIO, "0");
 
 	/*wait for npu wakeup*/
 	while (--retry) {
@@ -286,8 +290,8 @@ int npu_resume(void) {
 		return -1;
 	}
 	//waiting for userspase wakup
-	usleep(500000);
-	set_gpio(CPU_INT_NPU_GPIO, "0");
+	/*usleep(500000);*/
+	/*set_gpio(CPU_INT_NPU_GPIO, "0");*/
 
 	return 0;
 }
