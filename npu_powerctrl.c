@@ -23,6 +23,9 @@
 #define CLKEN_24M_PATH "/sys/kernel/debug/clk/clk_wifi_pmu/clk_enable_count"
 #define CLKEN_32k_PATH "/sys/kernel/debug/clk/rk808-clkout2/clk_enable_count"
 #define PCIE_RESET_EP "sys/devices/platform/f8000000.pcie/pcie_reset_ep"
+#define ACM_HIGHSPEED_ID "/sys/bus/platform/devices/fe380000.usb/usb*/*/idProduct"
+#define ACM_FULLSPEED_ID "/sys/bus/platform/devices/fe3a0000.usb/usb*/*/idProduct"
+
 
 #define NPU_VDD_0V8_GPIO 	"4"  //GPIO0_PA4
 #define NPU_VDD_LOG_GPIO 	"10" //GPIO0_PB2
@@ -214,6 +217,46 @@ void npu_poweroff(void) {
 	sysfs_write("/sys/power/wake_unlock", "npu_lock");
 }
 
+int disconnect_usb_acm(void)
+{
+	FILE *stream;
+	char buf[100];
+	int idx = 0, path_idx=0;
+
+	memset( buf,'\0',sizeof(buf) );
+	stream = popen( "cat " ACM_HIGHSPEED_ID, "r" );
+	if (!stream) {
+		path_idx=1;
+		stream = popen( "cat " ACM_FULLSPEED_ID, "r" );
+		if (!stream)
+			return -1;
+	}
+	fread( buf, sizeof(char), sizeof(buf), stream);
+	pclose( stream );
+	ALOGE("ACM idProduct: %s", buf);
+	if (!strncmp(buf, "1005", 4)) {
+		if (path_idx)
+			stream = popen("find /sys/bus/platform/devices/fe3a0000.usb/usb*/*/ -name remove", "r" );
+		else
+			stream = popen("find /sys/bus/platform/devices/fe380000.usb/usb*/*/ -name remove", "r" );
+		fread( buf, sizeof(char), sizeof(buf), stream);
+		ALOGE("usb remove patch is %s", buf);
+		/* The path string adds end character */
+		while(idx < 100) {
+			if (buf[idx] == '\n') {
+				buf[idx] = '\0';
+				break;
+			}
+			idx ++;
+		}
+		sysfs_write(buf, "0");
+		pclose( stream );
+		return 0;
+	}
+	return -1;
+
+}
+
 int npu_suspend(void) {
 	int retry=100;
 	int is_pcie;
@@ -224,8 +267,10 @@ int npu_suspend(void) {
 	}
 
 	is_pcie = access(PCIE_RESET_EP, R_OK);
-	if (!is_pcie)
+	if (!is_pcie) {
 		sysfs_write(PCIE_RESET_EP, "2");
+		disconnect_usb_acm();
+	}
 
 	set_gpio(CPU_INT_NPU_GPIO, "1");
 	usleep(20000);
