@@ -170,15 +170,12 @@ void npu_reset(void) {
 	sysfs_write("/sys/power/wake_lock", "npu_lock");
 	sysfs_write(CLKEN_32k_PATH, "1");
 	clk_enable("0");
-	/*power off*/
-	set_gpio(NPU_VDD_LOG_GPIO, "0");
-	/* wait for usb disconnect */
-	usleep(2000);
 	set_gpio(NPU_VDD_GPIO, "0");
 	set_gpio(NPU_VCCIO_3V3_GPIO, "0");
 	set_gpio(NPU_VDD_CPU_GPIO, "0");
 	set_gpio(NPU_VCC_1V8_GPIO, "0");
 	set_gpio(NPU_VDD_0V8_GPIO, "0");
+	set_gpio(NPU_VDD_LOG_GPIO, "0");
 	set_gpio(CPU_INT_NPU_GPIO, "0");
 	set_gpio(CPU_RESET_NPU_GPIO, "0");
 	usleep(2000);
@@ -202,15 +199,12 @@ void npu_reset(void) {
 }
 
 void npu_poweroff(void) {
-	/*power off*/
-	set_gpio(NPU_VDD_LOG_GPIO, "0");
-	/* wait for usb disconnect */
-	usleep(2000);
 	set_gpio(NPU_VDD_GPIO, "0");
 	set_gpio(NPU_VCCIO_3V3_GPIO, "0");
 	set_gpio(NPU_VDD_CPU_GPIO, "0");
 	set_gpio(NPU_VCC_1V8_GPIO, "0");
 	set_gpio(NPU_VDD_0V8_GPIO, "0");
+	set_gpio(NPU_VDD_LOG_GPIO, "0");
 	set_gpio(CPU_INT_NPU_GPIO, "0");
 	set_gpio(CPU_RESET_NPU_GPIO, "0");
 	clk_enable("0");
