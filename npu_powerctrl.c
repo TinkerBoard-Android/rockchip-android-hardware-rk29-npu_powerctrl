@@ -22,10 +22,11 @@
 #define GPIO_UNEXPORT_PATH GPIO_BASE_PATH "/unexport"
 #define CLKEN_24M_PATH "/sys/kernel/debug/clk/clk_wifi_pmu/clk_enable_count"
 #define CLKEN_32k_PATH "/sys/kernel/debug/clk/rk808-clkout2/clk_enable_count"
-#define PCIE_RESET_EP "sys/devices/platform/f8000000.pcie/pcie_reset_ep"
+#define PCIE_RESET_EP "/sys/devices/platform/f8000000.pcie/pcie_reset_ep"
 #define ACM_HIGHSPEED_ID "/sys/bus/platform/devices/fe380000.usb/usb*/*/idProduct"
 #define ACM_FULLSPEED_ID "/sys/bus/platform/devices/fe3a0000.usb/usb*/*/idProduct"
-
+#define PCIE_USER_RELINK "1"
+#define PCIE_USER_UNLINK "2"
 
 #define NPU_VDD_0V8_GPIO 	"4"  //GPIO0_PA4
 #define NPU_VDD_LOG_GPIO 	"10" //GPIO0_PB2
@@ -262,7 +263,7 @@ int npu_suspend(void) {
 
 	is_pcie = access(PCIE_RESET_EP, R_OK);
 	if (!is_pcie) {
-		sysfs_write(PCIE_RESET_EP, "2");
+		sysfs_write(PCIE_RESET_EP, PCIE_USER_UNLINK);
 		disconnect_usb_acm();
 	}
 
@@ -322,7 +323,7 @@ int npu_resume(void) {
 
 	is_pcie = access(PCIE_RESET_EP, R_OK);
 	if (!is_pcie)
-		sysfs_write(PCIE_RESET_EP, "1");
+		sysfs_write(PCIE_RESET_EP, PCIE_USER_RELINK);
 
 	if (!retry) {
 		ALOGE("npu resume timeout in one second\n");
